@@ -20,6 +20,7 @@ class Engine
 public:
 	Engine(const char* fname, int save_int, Integrator inter, bool potential = false) : save_interval{ save_int }, integrator{ inter }, apply_potential{ potential } {
 		init_system(fname);
+		if (doLinkCell) { init_algorithm(); }
 	};
 
 	void step();
@@ -71,5 +72,18 @@ private:
 	FILE* f1 = std::fopen("C:/Users/james/Data/output.dump", "w");
 
 	std::vector<Particle> particles;
+
+
+	// Link Cell Stuff
+	bool doLinkCell{ false };
+	void make_link_cell();
+	bool is_valid_neighbour(int ix, int iy, int iix, int iiy);
+	void init_neighbours();
+	void init_algorithm();
+	const int nx{ 2 }, ny{ 2 };
+	std::vector<std::vector<std::vector<int>>> linkCell;
+	std::vector<std::vector<std::vector<std::pair<int, int>>>> neighbours;
+
+
 };
 

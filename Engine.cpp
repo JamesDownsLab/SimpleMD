@@ -2,6 +2,7 @@
 
 void Engine::step()
 {
+	if (doLinkCell) { make_link_cell(); }
 	collision = false;
 	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
 	
@@ -106,11 +107,41 @@ void Engine::init_system(const char* fname)
 
 void Engine::make_forces()
 {
-	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
-		for (unsigned int k{ i+1 }; k < no_of_particles; k++) {
-			force(particles[i], particles[k], lx, ly);
+	if (doLinkCell) {
+		// for all cells
+		for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
+			for (unsigned int iy{ 0 }; iy < linkCell[ix].size(); iy++) {
+				for (unsigned int j{ 0 }; j < linkCell[ix][iy].size(); j++) {
+					int pj = linkCell[ix][iy][j];
+
+					// force between all particles in the same cell
+					for (unsigned int k{ j + 1 }; k < linkCell[ix][iy].size(); k++) {
+						int pk = linkCell[ix][iy][k];
+						force(particles[pj], particles[pk], lx, ly);
+					}
+
+					// force between particles in neighbouring cells
+					for (unsigned int n{ 0 }; n < neighbours[ix][iy].size(); n++) {
+						int iix = neighbours[ix][iy][n].first;
+						int iiy = neighbours[ix][iy][n].second;
+
+						for (unsigned int k{ 0 }; k < linkCell[iix][iiy].size(); k++) {
+							int pk = linkCell[iix][iiy][k];
+							force(particles[pj], particles[pk], lx, ly);
+						}
+					}
+				}
+			}
 		}
 	}
+	else {
+		for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+			for (unsigned int k{ i + 1 }; k < no_of_particles; k++) {
+				force(particles[i], particles[k], lx, ly);
+			}
+		}
+	}
+
 }
 
 void Engine::integrate()
@@ -194,4 +225,71 @@ void Engine::dump()
 	for (Particle& p : particles) {
 		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", p.x(), p.y(), 0.0, p.vx(), p.vy(), p.r(), p.pstate(), p.contact());
 	}
+}
+
+void Engine::make_link_cell()
+{
+	// Lists are emptied
+	for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
+		for (unsigned int iy{ 0 }; iy < linkCell[ix].size(); iy++) {
+			linkCell[ix][iy].clear();
+		}
+	}
+
+	// Assign each particle a box which contains its center.
+	for (int i{ 0 }; i < no_of_particles; i++) {
+		int ix = int(nx * (particles[i].x() - x_0) / lx);
+		int iy = int(ny * (particles[i].y() - y_0) / ly);
+		if ((ix >= 0) && (ix < nx) && (iy >= 0) && (iy < ny)) {
+			linkCell[ix][iy].push_back(i);
+		}
+		else {
+			std::cerr << "Particle " << i << " outside simulation area\n";
+			exit(0);
+		}
+	}
+}
+
+bool Engine::is_valid_neighbour(int ix, int iy, int iix, int iiy)
+{
+	// check whether boxes have to be recorded.
+	if ((iix == (ix - 1 + nx) % nx) && (iiy == (iy + 1 + ny) % ny)) return true;
+	if ((iix == (ix + nx) % nx) && (iiy == ((iy + 1 + ny) % ny))) return true;
+	if ((iix == (ix + 1 + nx) % nx) && (iiy == (iy + 1 + ny) % ny)) return true;
+	if ((iix == (ix + 1 + nx) % nx) && (iiy == (iy + ny) % ny)) return true;
+	return false;
+}
+
+void Engine::init_neighbours()
+{
+	int iix, iiy;
+
+	neighbours.resize(nx);
+	for (int ix{ 0 }; ix < nx; ix++) {
+		neighbours[ix].resize(ny);
+	}
+
+	for (int ix{ 0 }; ix < nx; ix++) {
+		for (int iy{ 0 }; iy < ny; iy++) {
+			for (int dx{ -1 }; dx <= 1; dx++) {
+				for (int dy{ -1 }; dy < 1; dy++) {
+					iix = (ix + dx + nx) % nx;
+					iiy = (iy + dy + ny) % ny;
+					if (is_valid_neighbour(ix, iy, iix, iiy)) {
+						neighbours[ix][iy].push_back(std::pair<int, int>(iix, iiy));
+					}
+				}
+			}
+		}
+	}
+}
+
+void Engine::init_algorithm()
+{
+	linkCell.resize(nx);
+	for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
+		linkCell[ix].resize(ny);
+	}
+	init_neighbours();
+	make_link_cell();
 }
