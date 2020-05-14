@@ -2,7 +2,9 @@
 
 void Engine::step()
 {
-	if (doLinkCell) { make_link_cell(); }
+	if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
+	else if (_options.optimiser == Optimiser::LinkedList) { 
+		make_ilist(); }
 	collision = false;
 	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
 	
@@ -11,6 +13,14 @@ void Engine::step()
 	collision = result == std::end(particles) ? false : true;
 	std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
 	check_dump();
+	//if (save2 == 100) {
+	//	for (auto& p : particles) {
+	//		std::fprintf(f2, "%.5e,", p.force().length());
+	//	}
+	//	std::fprintf(f2, "\n");
+	//}
+	//else save2++;
+	//
 }
 
 int Engine::collisions()
@@ -29,6 +39,15 @@ double Engine::total_kinetic_energy()
 	return energy;
 }
 
+double Engine::total_force()
+{
+	double f{ 0 };
+	for (auto& p : particles) {
+		f += p.force().length();
+	}
+	return f;
+}
+
 void Engine::init_system(const char* fname)
 {
 	std::ifstream fparticle{ fname };
@@ -45,25 +64,10 @@ void Engine::init_system(const char* fname)
 			fparticle.ignore(100, '\n');
 			std::cout << "Time: " << Time << std::endl;
 		}
-		else if (type == "#nstep:") {
-			fparticle >> nstep;
-			fparticle.ignore(100, '\n');
-			std::cout << "nstep: " << nstep << std::endl;
-		}
 		else if (type == "#timestep:") {
 			fparticle >> timestep;
 			fparticle.ignore(100, '\n');
 			std::cout << "timestep: " << timestep << std::endl;
-		}
-		else if (type == "#nprint:") {
-			fparticle >> nprint;
-			fparticle.ignore(100, '\n');
-			std::cout << "nprint: " << nprint << std::endl;
-		}
-		else if (type == "#nenergy:") {
-			fparticle >> nenergy;
-			fparticle.ignore(100, '\n');
-			std::cout << "nenergy: " << nenergy << std::endl;
 		}
 		else if (type == "#lx:") {
 			fparticle >> lx;
@@ -84,6 +88,11 @@ void Engine::init_system(const char* fname)
 			fparticle >> y_0;
 			fparticle.ignore(100, '\n');
 			std::cout << "y_0: " << y_0 << std::endl;
+		}
+		else if (type == "#D:") {
+			fparticle >> noise_strength;
+			fparticle.ignore(100, '\n');
+			std::cout << "D: " << noise_strength << std::endl;
 		}
 		else {
 			std::cerr << "init: unknown global property: " << type << std::endl;
@@ -107,7 +116,7 @@ void Engine::init_system(const char* fname)
 
 void Engine::make_forces()
 {
-	if (doLinkCell) {
+	if (_options.optimiser == Optimiser::LinkCell) {
 		// for all cells
 		for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
 			for (unsigned int iy{ 0 }; iy < linkCell[ix].size(); iy++) {
@@ -134,6 +143,14 @@ void Engine::make_forces()
 			}
 		}
 	}
+	else if (_options.optimiser == Optimiser::LinkedList) {
+		for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+			for (unsigned int k{ 0 }; k < partners[i].size(); k++) {
+				int pk = partners[i][k];
+				force(particles[i], particles[pk], lx, ly);
+			}
+		}
+	}
 	else {
 		for (unsigned int i{ 0 }; i < no_of_particles; i++) {
 			for (unsigned int k{ i + 1 }; k < no_of_particles; k++) {
@@ -144,6 +161,29 @@ void Engine::make_forces()
 
 }
 
+void Engine::make_random_forces()
+{
+	for (auto& p : particles) {
+		double a1 = a1_dis(gen);
+		double a2 = a2_dis(gen);
+		double K = sqrt(-4 * log(a1) * noise_strength / timestep);
+		Vector f{ K * cos(2 * PI * a2), K * sin(2 * PI * a2) };
+		p.set_random_force(f);
+	}
+}
+
+void Engine::correct_random_forces()
+{
+	Vector total_force{ null };
+	for (auto& p : particles) {
+		total_force += p.random_force();
+	}
+	total_force *= (-1.0 / no_of_particles);
+	for (auto& p : particles) {
+		p.correct_random_force(total_force);
+	}
+}
+
 void Engine::integrate()
 {
 	// Set forces to zero and move particles that belong to moving boundaries
@@ -151,7 +191,7 @@ void Engine::integrate()
 		[&](Particle& p) {
 			if (p.pstate() == ParticleState::Free) {
 				p.set_force_to_zero();
-				if (integrator == Integrator::Gear) p.gear_predict(timestep);
+				if (_options.integrator == Integrator::Gear) p.gear_predict(timestep);
 			}
 			else {
 				p.boundary_conditions(timestep, Time);
@@ -160,22 +200,20 @@ void Engine::integrate()
 
 	// Calculate all the forces between particles
 	make_forces();
-
-	//if (apply_potential) {
-
-	//	G = Vector(p0 * cos(dis(gen)), p0 * sin(dis(gen)));
-	//}
-	//else G = null;
+	if (_options.random_force == true) {
+		make_random_forces();
+		correct_random_forces();
+	}
+	
 
 	// Update the positions of all the particles 
 	std::for_each(particles.begin(), particles.end(),
 		[&](Particle& p) {
 			if (p.pstate() == ParticleState::Free) {
-				switch (integrator)
+				switch (_options.integrator)
 				{
 				case Integrator::VerletPosition:
-					G = Vector(dis(gen), dis(gen));
-					p.position_verlet(timestep, G);
+					p.position_verlet(timestep, lx, ly, G);
 					break;
 				case Integrator::VerletVelocity:
 					p.velocity_verlet(timestep, G);
@@ -197,7 +235,7 @@ void Engine::integrate()
 
 void Engine::check_dump()
 {
-	if (save != save_interval) {
+	if (save != _options.save_interval) {
 		save++;
 	}
 	else {
@@ -206,11 +244,13 @@ void Engine::check_dump()
 		dump();
 		//}
 	}
-	_collisions = collisions();
-	if (_collisions != _last_collisions) {
-		dump();
+	if (_options.save_on_collision == true) {
+		_collisions = collisions();
+		if (_collisions != _last_collisions) {
+			dump();
+		}
+		_last_collisions = _collisions;
 	}
-	_last_collisions = _collisions;
 }
 
 void Engine::dump()
@@ -284,7 +324,7 @@ void Engine::init_neighbours()
 	}
 }
 
-void Engine::init_algorithm()
+void Engine::init_link_cell_algorithm()
 {
 	linkCell.resize(nx);
 	for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
@@ -293,3 +333,66 @@ void Engine::init_algorithm()
 	init_neighbours();
 	make_link_cell();
 }
+
+void Engine::make_ilist()
+{
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
+			int ix = int((x - x_0) / gk);
+			int iy = int((y - y_0) / gk);
+			pindex[ix][iy] = i;
+			partners[i].clear();
+		}
+	}
+
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
+			int ix = int((x - x_0) / gk);
+			int iy = int((y - y_0) / gk);
+			for (int dx = -gm; dx <= gm; dx++) {
+				for (int dy = -gm; dy <= gm; dy++) {
+					int k = pindex[(ix + dx + Nx) % Nx][(iy + dy + Ny) % Ny];
+					if (k > (int)i) {
+						partners[i].push_back(k);
+					}
+				}
+			}
+		}
+	}
+	clear_pindex();
+}
+
+void Engine::clear_pindex()
+{
+	for (auto& p : pindex) {
+		for (auto& q : p) {
+			q = -1;
+		}
+	}
+}
+
+void Engine::init_lattice_algorithm()
+{
+	rmin = particles[0].r();
+	rmax = particles[0].r();
+	for (auto& p : particles) {
+		if (p.r() < rmin) rmin = p.r();
+		if (p.r() > rmax) rmax = p.r();
+	}
+	gk = sqrt(2) * rmin;
+	gm = int(2 * rmax / gk) + 1;
+	Nx = int(lx / gk) + 1;
+	Ny = int(ly / gk + 1);
+	partners.resize(no_of_particles);
+	pindex.resize(Nx);
+	for (auto& p : pindex) {
+		p.resize(Ny);
+	}
+	clear_pindex();
+	make_ilist();
+}
+

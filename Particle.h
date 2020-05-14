@@ -4,6 +4,8 @@
 #include "Vector.h"
 #include "ParticleState.h"
 
+const double PI = 3.1415926;
+
 inline double normalize(double dx, double L) {
 	while (dx < -L / 2) dx += L;
 	while (dx >= L / 2) dx -= L;
@@ -42,21 +44,27 @@ public:
 	bool& contact() { return _contact; }
 	bool contact() const { return _contact; }
 	double kinetic_energy() { return 0.5 * _m * (rtd1.x() * rtd1.x() + rtd1.y() * rtd1.y());}
+	Vector& force() { return _force; }
+	Vector force() const { return _force; }
+
 
 	// Setters
 	void reset_contact() { _contact = false; }
 	void set_force_to_zero() { _force = null; }
 	void init_rtd0_old(double dt) { rtd0_old = rtd0 - rtd1 * dt; }
 
-
+	Vector& random_force() { return _random_force; }
+	Vector random_force() const { return _random_force; }
+	void correct_random_force(Vector& correction) { _random_force += correction; }
 	void add_force(const Vector& f) { _force += f; }
+	void set_random_force(Vector& f) { _random_force = f; }
 	void periodic_bc(double x_0, double y_0, double lx, double ly);
 	void boundary_conditions(double timestep, double Time);
 
 
 	void gear_predict(double dt);
 	void gear_correct(double dt, Vector G=null);
-	void position_verlet(double dt, Vector G=null);
+	void position_verlet(double dt, double lx, double ly, Vector G=null);
 	void velocity_verlet(double dt, Vector G=null);
 
 	void update_collisions();
@@ -71,8 +79,9 @@ private:
 	Vector rtd0, rtd1, rtd2, rtd3, rtd4;
 	Vector rtd0_old, rtd0_new;
 	Vector _force;
+	Vector _random_force{ null };
 	ParticleState _pstate{ ParticleState::Free };
-	double _r, _m, Y, gamma, mu, A;
+	double _r, _m, _k, _epsilon, _gamma;
 	bool _contact{ false }, _previous_contact{ false };
 	int _collisions{ 0 };
 };

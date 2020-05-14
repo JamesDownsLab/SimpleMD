@@ -151,6 +151,7 @@
     <ClCompile Include="Particle.cpp" />
     <ClCompile Include="ParticleState.cpp" />
     <ClCompile Include="SimpleMD.cpp" />
+    <ClCompile Include="Vector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Engine.h" />

@@ -35,11 +35,13 @@ void force(Particle& p1, Particle& p2, double lx, double ly)
 		double xidot = -(ex * dvx + ey * dvy);
 
 		// Average particle properties
-		double Y = p1.Y * p2.Y / (p1.Y + p2.Y);
-		double gamma = 0.5 * (p1.gamma + p2.gamma);
+		double k = 0.5 * (p1._k + p2._k);
+		double gamma = 0.5 * (p1._gamma + p2._gamma);
 
 		// Normal Force
-		double fn = Y * xi + gamma * xidot;
+		double elastic_force = k * xi;
+		double dissipative_force = gamma * xidot;
+		double fn = elastic_force + dissipative_force;
 
 		// 
 		if (fn < 0) fn = 0;
@@ -57,9 +59,10 @@ std::istream& operator>>(std::istream& is, Particle& p)
 {
 	is >> p.rtd0 >> p.rtd1
 		>> p._r >> p._m >> p._pstate
-		>> p.Y >> p.A >> p.mu >> p.gamma
+		>> p._k >> p._epsilon
 		>> p._force
 		>> p.rtd2 >> p.rtd3 >> p.rtd4;
+	p._gamma = abs(log(p._epsilon) / PI * sqrt((4 * (p._m*0.5) * p._k) / (1 + (log(p._epsilon) / PI) * (log(p._epsilon) / PI))));
 	return is;
 }
 
@@ -67,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const Particle& p)
 {
 	os << p.rtd0 << " " << p.rtd1 << " ";
 	os << p._r << " " << p._m << " " << p._pstate << " ";
-	os << p.Y << " " << p.A << " " << p.mu << " " << p.gamma << " ";
+	os << p._k << " " << p._epsilon << " ";
 	os << p._force << " ";
 	os << p.rtd2 << " " << p.rtd3 << " " << p.rtd4 << "\n" << std::flush;
 	return os;
@@ -79,6 +82,10 @@ void Particle::periodic_bc(double x_0, double y_0, double lx, double ly)
 	while (rtd0.x() > x_0 + lx) rtd0.x() -= lx;
 	while (rtd0.y() < y_0) rtd0.y() += ly;
 	while (rtd0.y() > y_0 + ly) rtd0.y() -= ly;
+	//while (rtd0_old.x() < x_0) rtd0_old.x() += lx;
+	//while (rtd0_old.x() > x_0 + lx) rtd0_old.x() -= lx;
+	//while (rtd0_old.y() < y_0) rtd0_old.y() += ly;
+	//while (rtd0_old.y() > y_0 + ly) rtd0_old.y() -= ly;
 }
 
 void Particle::boundary_conditions(double timestep, double Time)
@@ -117,8 +124,8 @@ void Particle::gear_correct(double dt, Vector G)
 	const double coeff3 = double(1) / double(2) * (double(3) * dtrez);
 	const double coeff4 = double(1) / double(12) * (double(12) * (dtrez * dtrez));
 
-	accel = Vector((1 / _m) * _force.x() + G.x(),
-		(1 / _m) * _force.y() + G.y());
+	accel = Vector((1 / _m) * (_force.x()+_random_force.x()) + G.x(),
+		(1 / _m) * (_force.y()+_random_force.y()) + G.y());
 
 	corr = accel - rtd2;
 	rtd0 += coeff0 * corr;
@@ -128,11 +135,16 @@ void Particle::gear_correct(double dt, Vector G)
 	rtd4 += coeff4 * corr;
 }
 
-void Particle::position_verlet(double dt, Vector G)
+void Particle::position_verlet(double dt, double lx, double ly, Vector G)
 {
-	rtd2 = _force * (1 / _m) + G;
-	rtd0_new = 2 * rtd0 - rtd0_old + dt * dt * rtd2;
-	rtd1 = (rtd0_new - rtd0_old) * (1 / (2 * dt));
+	rtd2 = (_force + _random_force) * (1 / _m) + G;
+	Vector diff = rtd0 - rtd0_old;
+	bool diff_changed = diff.correct_bc(lx, ly);
+	rtd0_new = rtd0 + diff + dt * dt * rtd2;
+	rtd1 = (rtd0_new - rtd0_old);
+	bool rtd1_changed = rtd1.correct_bc(lx, ly);
+	rtd1 *= (1 / (2 * dt));
+
 	rtd0_old = rtd0;
 	rtd0 = rtd0_new;
 }
@@ -143,10 +155,11 @@ void Particle::velocity_verlet(double dt, Vector G)
 	double a2 = dt * dt / 2;
 	
 	rtd0 += rtd1 * a1 + rtd2 * a2;
-	Vector new_rtd2 = _force * (1 / _m) + G;
+	Vector new_rtd2 = (_force+_random_force) * (1 / _m) + G;
 	rtd1 += (rtd2 + new_rtd2) * (dt / 2);
 	rtd2 = new_rtd2;
 }
+
 
 void Particle::update_collisions()
 {
