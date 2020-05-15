@@ -55,6 +55,10 @@ void dump_preamble(std::ofstream& os, SystemProperties& p) {
 		<< "#D: " << p.D << "\n";
 }
 
+void dump_dimple(std::ofstream& os, double x, double y) {
+	os << "%dimple: " << x << " " << y << "\n";
+}
+
 void TwoBalls() {
 	std::ofstream fout("initial.random");
 	dump_preamble(fout, sysProps);
@@ -92,6 +96,50 @@ void EnergyInputInvarience(double dt, double D) {
 			double x = (5.0 * (double)i + 3.0) * 1e-3;
 			double y = (5.0 * (double)j + 3.0) * 1e-3;
 			dump(fout, x, y, vx, vy, 0, mprops);
+		}
+	}
+}
+
+void DimpleTest() {
+	std::ofstream fout("initial.random");
+	SystemProperties props{
+		1e-7,
+		49e-3,
+		49e-3,
+		0.0,
+		0.0,
+		1e-8
+	};
+	MaterialProperties mprops{
+		0.0387e-3,
+		2e-3,
+		500e3,
+		0.2
+	};
+	const double PI = 3.1415926;
+	//std::random_device rd;
+	//std::mt19937_64 gen(rd());
+	std::mt19937_64 gen(1);
+	std::uniform_real_distribution<double> dis(0.0, 2 * PI);
+	dump_preamble(fout, props);
+
+	for (int i{ 0 }; i < 10; i++) {
+		for (int j{ 0 }; j < 10; j++) {
+			double x = (5.0 * (double)i + 3.0) * 1e-3;
+			double y = (5.0 * (double)j + 3.0) * 1e-3;
+			dump_dimple(fout, x, y);
+		}
+	}
+
+	double v0{ 10 };
+	for (int i{ 0 }; i < 10; i++) {
+		for (int j{ 0 }; j < 10; j++) {
+			double vx = v0 * cos(dis(gen));
+			double vy = v0 * sin(dis(gen));
+			double x = (5.0 * (double)i + 3.0) * 1e-3;
+			double y = (5.0 * (double)j + 3.0) * 1e-3;
+			dump(fout, x, y, vx, vy, 0, mprops);
+
 		}
 	}
 }

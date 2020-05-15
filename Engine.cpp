@@ -13,14 +13,6 @@ void Engine::step()
 	collision = result == std::end(particles) ? false : true;
 	std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
 	check_dump();
-	//if (save2 == 100) {
-	//	for (auto& p : particles) {
-	//		std::fprintf(f2, "%.5e,", p.force().length());
-	//	}
-	//	std::fprintf(f2, "\n");
-	//}
-	//else save2++;
-	//
 }
 
 int Engine::collisions()
@@ -99,6 +91,18 @@ void Engine::init_system(const char* fname)
 			abort();
 		}
 	}
+
+	while (fparticle.peek() == '%') {
+		std::string type;
+		fparticle >> type;
+		double x, y;
+		if (type == "%dimple:") {
+			fparticle >> x >> y;
+			fparticle.ignore(100, '\n');
+			dimples.emplace_back(x, y);
+		}
+	}
+
 	while (fparticle) {
 		Particle pp;
 		fparticle >> pp;
@@ -204,6 +208,7 @@ void Engine::integrate()
 		make_random_forces();
 		correct_random_forces();
 	}
+	calculate_drags();
 	
 
 	// Update the positions of all the particles 
@@ -250,6 +255,26 @@ void Engine::check_dump()
 			dump();
 		}
 		_last_collisions = _collisions;
+	}
+}
+
+void Engine::calculate_drags()
+{
+	for (auto& p : particles) {
+		std::vector <double> dists;
+		for (auto& d : dimples) {
+			double dx = abs(p.x() - d.x());
+			double dy = abs(p.y() - d.y());
+			if (dx > lx / 2) { dx = lx - dx; }
+			if (dy > ly / 2) { dy = ly - dy; }
+			dists.emplace_back(dx * dx + dy * dy);
+		}
+		double distance = dists[*std::min_element(dists.begin(), dists.end())];
+		if (distance < p.r()/10) {
+			p.set_drag(drag);
+		}
+		else p.set_drag(0);
+		
 	}
 }
 

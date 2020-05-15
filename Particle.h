@@ -52,6 +52,7 @@ public:
 	void reset_contact() { _contact = false; }
 	void set_force_to_zero() { _force = null; }
 	void init_rtd0_old(double dt) { rtd0_old = rtd0 - rtd1 * dt; }
+	void set_drag(double d) { _drag = d; }
 
 	Vector& random_force() { return _random_force; }
 	Vector random_force() const { return _random_force; }
@@ -81,7 +82,7 @@ private:
 	Vector _force;
 	Vector _random_force{ null };
 	ParticleState _pstate{ ParticleState::Free };
-	double _r, _m, _k, _epsilon, _gamma;
+	double _r, _m, _k, _epsilon, _gamma, _drag;
 	bool _contact{ false }, _previous_contact{ false };
 	int _collisions{ 0 };
 };

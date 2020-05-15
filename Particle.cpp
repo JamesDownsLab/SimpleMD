@@ -139,10 +139,11 @@ void Particle::position_verlet(double dt, double lx, double ly, Vector G)
 {
 	rtd2 = (_force + _random_force) * (1 / _m) + G;
 	Vector diff = rtd0 - rtd0_old;
-	bool diff_changed = diff.correct_bc(lx, ly);
+	diff.correct_bc(lx, ly);
+	diff *= (1 - _drag);
 	rtd0_new = rtd0 + diff + dt * dt * rtd2;
 	rtd1 = (rtd0_new - rtd0_old);
-	bool rtd1_changed = rtd1.correct_bc(lx, ly);
+	rtd1.correct_bc(lx, ly);
 	rtd1 *= (1 / (2 * dt));
 
 	rtd0_old = rtd0;

@@ -1,6 +1,6 @@
 #include "Vector.h"
 
-bool Vector::correct_bc(double lx, double ly)
+void Vector::correct_bc(double lx, double ly)
 {
 	bool result = false;
 	if (_x > lx / 2) {
@@ -20,5 +20,4 @@ bool Vector::correct_bc(double lx, double ly)
 		result = true;
 		_y += ly;
 	}
-	return result;
 }

@@ -9,6 +9,8 @@
 
 #include "Particle.h"
 
+
+
 enum class Integrator {
 	VerletPosition,
 	VerletVelocity,
@@ -50,11 +52,13 @@ private:
 
 	// Functions
 	void init_system(const char* fname);
+	void init_dimples();
 	void make_forces();
 	void make_random_forces();
 	void correct_random_forces();
 	void integrate();
 	void check_dump();
+	void calculate_drags();
 	void dump();
 
 
@@ -73,10 +77,6 @@ private:
 	FILE* f1 = std::fopen("C:/Users/james/Data/output.dump", "w");
 	int save{ 1 };
 
-	// Temp File Writing
-	FILE* f2 = std::fopen("C:/Users/james/Data/forces.txt", "w");
-	int save2{ 1 };
-
 
 
 	// Box Properties
@@ -88,6 +88,10 @@ private:
 	// Options
 	ProgramOptions _options;
 	Vector G;
+
+	// Dimple stuff
+	std::vector<Vector> dimples;
+	double drag{ 1e-5 };
 
 
 	// Random Force Stuff
@@ -105,6 +109,7 @@ private:
 	const int nx{ 10 }, ny{ 10 };
 	std::vector<std::vector<std::vector<int>>> linkCell;
 	std::vector<std::vector<std::vector<std::pair<int, int>>>> neighbours;
+	
 
 	// Lattice Alg Stuff
 	void make_ilist();

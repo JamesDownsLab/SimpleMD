@@ -58,7 +58,7 @@ public:
 	double& y() { return _y; }
 	double y() const { return _y; }
 	double length() const { return sqrt(_x * _x + _y * _y); }
-	bool correct_bc(double lx, double ly);
+	void correct_bc(double lx, double ly);
 
 	const Vector& operator += (const Vector& p) {
 		_x += p._x;
