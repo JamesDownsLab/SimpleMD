@@ -6,10 +6,12 @@
 #include <vector>
 #include <random>
 #include <math.h>
-
 #include "Particle.h"
+#include <nanoflann.hpp>
+#include <KDTreeVectorOfVectorsAdaptor.h>
 
 
+typedef KDTreeVectorOfVectorsAdaptor<std::vector<std::vector<double>>, double> my_kd_tree_t;
 
 enum class Integrator {
 	VerletPosition,
@@ -36,10 +38,13 @@ struct ProgramOptions {
 class Engine
 {
 public:
-	Engine(const char* fname, ProgramOptions options) : _options{ options }, gen{ options.seed } {
+	Engine(const char* fname, ProgramOptions options) : 
+		_options{ options }, gen{ options.seed }
+	{
 		init_system(fname);
 		if (options.optimiser == Optimiser::LinkCell) { init_link_cell_algorithm(); }
 		if (_options.optimiser == Optimiser::LinkedList) { init_lattice_algorithm(); }
+		init_dimples();
 	};
 
 	void step();
@@ -51,6 +56,7 @@ public:
 private:
 
 	// Functions
+	bool init;
 	void init_system(const char* fname);
 	void init_dimples();
 	void make_forces();
@@ -92,7 +98,11 @@ private:
 	// Dimple stuff
 	std::vector<Vector> dimples;
 	double drag{ 1e-5 };
-
+	double dimple_rad{ 0.2e-3 };
+	int dim{ 2 };
+	int leaf_size{ 10 };
+	std::vector<std::vector<double>> empty{ {0.01, 0.01}, {0.01, 0.02} };
+	my_kd_tree_t mat_index{ dim, empty, leaf_size };
 
 	// Random Force Stuff
 	const double PI = 3.1415926;

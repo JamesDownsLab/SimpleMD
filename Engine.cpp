@@ -118,6 +118,46 @@ void Engine::init_system(const char* fname)
 	dump();
 }
 
+void Engine::init_dimples()
+{
+	std::vector<double> pt;
+	std::vector<std::vector<double>> points;
+	points.reserve(dimples.size() * 9);
+	for (auto& d : dimples) {
+		double x = d.x();
+		double y = d.y();
+		pt = { x, y };
+		points.push_back(pt);
+		pt = { x - lx, y };
+		points.push_back(pt);
+		pt = { x - lx, y - ly };
+		points.push_back(pt);
+		pt = { x, y - ly };
+		points.push_back(pt);
+		pt = { x + lx, y - ly };
+		points.push_back(pt);
+		pt = { x + lx, y };
+		points.push_back(pt);
+		pt = { x + lx, y + ly };
+		points.push_back(pt);
+		pt = { x, y + ly };
+		points.push_back(pt);
+		pt = { x - lx, y + ly };
+		points.push_back(pt);
+	}
+	mat_index.m_data.reserve(points.size());
+	for (int i{ 0 }; i < 2; i++) {
+		mat_index.m_data[i] = points[i];
+	}
+	for (int i{ 2 }; i < points.size(); i++) {
+		mat_index.m_data.push_back(points[i]);
+	}
+	mat_index.index->buildIndex();
+}
+
+
+
+
 void Engine::make_forces()
 {
 	if (_options.optimiser == Optimiser::LinkCell) {
@@ -258,30 +298,46 @@ void Engine::check_dump()
 	}
 }
 
+//void Engine::calculate_drags()
+//{
+//	for (auto& p : particles) {
+//		std::vector <double> dists;
+//		for (auto& d : dimples) {
+//			double dx = abs(p.x() - d.x());
+//			double dy = abs(p.y() - d.y());
+//			if (dx > lx / 2) { dx = lx - dx; }
+//			if (dy > ly / 2) { dy = ly - dy; }
+//			dists.emplace_back(dx * dx + dy * dy);
+//		}
+//		double distance = dists[*std::min_element(dists.begin(), dists.end())];
+//		if (distance < p.r() / 10) {
+//			p.set_drag(drag);
+//		}
+//		else p.set_drag(0);
+//
+//	}
+//}
 void Engine::calculate_drags()
 {
+	const size_t num_results = 2;
+	std::vector<size_t> ret_index(num_results);
+	std::vector<double> out_dist_sqr(num_results);
 	for (auto& p : particles) {
-		std::vector <double> dists;
-		for (auto& d : dimples) {
-			double dx = abs(p.x() - d.x());
-			double dy = abs(p.y() - d.y());
-			if (dx > lx / 2) { dx = lx - dx; }
-			if (dy > ly / 2) { dy = ly - dy; }
-			dists.emplace_back(dx * dx + dy * dy);
-		}
-		double distance = dists[*std::min_element(dists.begin(), dists.end())];
-		if (distance < p.r()/10) {
+		std::vector<double> query_pt{ p.x(), p.y() };
+		nanoflann::KNNResultSet<double> resultSet(num_results);
+		resultSet.init(&ret_index[0], &out_dist_sqr[0]);
+		mat_index.index->findNeighbors(resultSet, &query_pt[0], nanoflann::SearchParams(10));
+		if (out_dist_sqr[1] < p.r() / 10) {
 			p.set_drag(drag);
 		}
 		else p.set_drag(0);
-		
 	}
 }
 
 void Engine::dump()
 {
 	std::fprintf(f1, "ITEM: TIMESTEP\n%d\n", int(Time / timestep));
-	std::fprintf(f1, "ITEM: TIME\n\%.8f\n", Time);
+	std::fprintf(f1, "ITEM: TIME\n%.8f\n", Time);
 	std::fprintf(f1, "ITEM: BOX BOUNDS pp pp f\n%.4f %.4f\n%.4f %.4f\n-0.002 0.002\n", x_0, x_0 + lx, y_0, y_0 + ly);
 	std::fprintf(f1, "ITEM: NUMBER OF ATOMS\n%d\n", no_of_particles);
 	std::fprintf(f1, "ITEM: KINETIC ENERGY\n%.3e\n", total_kinetic_energy());
