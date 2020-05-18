@@ -3,15 +3,18 @@
 void Engine::step()
 {
 	if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
-	else if (_options.optimiser == Optimiser::LinkedList) { 
-		make_ilist(); }
+	else if (_options.optimiser == Optimiser::Lattice) { make_ilist(); }
+	
 	collision = false;
 	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
 	
 	integrate();
+
 	auto result = std::find_if(particles.begin(), particles.end(), [](auto& p) { return p.contact(); });
 	collision = result == std::end(particles) ? false : true;
 	std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
+
+
 	check_dump();
 }
 
@@ -176,7 +179,7 @@ void Engine::make_forces()
 			}
 		}
 	}
-	else if (_options.optimiser == Optimiser::LinkedList) {
+	else if (_options.optimiser == Optimiser::Lattice) {
 		for (unsigned int i{ 0 }; i < no_of_particles; i++) {
 			for (unsigned int k{ 0 }; k < partners[i].size(); k++) {
 				int pk = partners[i][k];
@@ -403,12 +406,12 @@ void Engine::make_ilist()
 	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
 		double x = particles[i].x();
 		double y = particles[i].y();
-		if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
+		//if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
 			int ix = int((x - x_0) / gk);
 			int iy = int((y - y_0) / gk);
 			pindex[ix][iy] = i;
 			partners[i].clear();
-		}
+		//}
 	}
 
 	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
@@ -419,7 +422,9 @@ void Engine::make_ilist()
 			int iy = int((y - y_0) / gk);
 			for (int dx = -gm; dx <= gm; dx++) {
 				for (int dy = -gm; dy <= gm; dy++) {
-					int k = pindex[(ix + dx + Nx) % Nx][(iy + dy + Ny) % Ny];
+					int iix = (ix + dx + Nx) % Nx;
+					int iiy = (iy + dy + Ny) % Ny;
+					int k = pindex[iix][iiy];
 					if (k > (int)i) {
 						partners[i].push_back(k);
 					}

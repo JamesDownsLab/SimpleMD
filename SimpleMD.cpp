@@ -16,7 +16,7 @@ int main()
 
     ProgramOptions options{
         Integrator::VerletPosition,
-        Optimiser::LinkedList,
+        Optimiser::Lattice,
         /* save_interval */ 1000,
         /*save_on_collision*/ false,
         /*random_force*/ true,

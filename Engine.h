@@ -8,11 +8,6 @@
 #include <boost/random.hpp>
 #include <math.h>
 #include "Particle.h"
-#include <nanoflann.hpp>
-#include <KDTreeVectorOfVectorsAdaptor.h>
-
-
-typedef KDTreeVectorOfVectorsAdaptor<std::vector<std::vector<double>>, double> my_kd_tree_t;
 
 enum class Integrator {
 	VerletPosition,
@@ -24,7 +19,7 @@ enum class Optimiser {
 	None,
 	Verlet,
 	LinkCell,
-	LinkedList
+	Lattice
 };
 
 struct ProgramOptions {
@@ -45,7 +40,7 @@ public:
 		rng.seed(options.seed);
 		init_system(fname);
 		if (options.optimiser == Optimiser::LinkCell) { init_link_cell_algorithm(); }
-		if (_options.optimiser == Optimiser::LinkedList) { init_lattice_algorithm(); }
+		if (_options.optimiser == Optimiser::Lattice) { init_lattice_algorithm(); }
 		init_dimples();
 	};
 
@@ -53,6 +48,7 @@ public:
 	int collisions();
 	double total_kinetic_energy();
 	double total_force();
+	void set_noise(double s) {noise_strength = s;}
 
 
 private:
@@ -119,7 +115,7 @@ private:
 	bool is_valid_neighbour(int ix, int iy, int iix, int iiy);
 	void init_neighbours();
 	void init_link_cell_algorithm();
-	const int nx{ 10 }, ny{ 10 };
+	const int nx{ 5 }, ny{ 5 };
 	std::vector<std::vector<std::vector<int>>> linkCell;
 	std::vector<std::vector<std::vector<std::pair<int, int>>>> neighbours;
 	
