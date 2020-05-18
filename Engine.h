@@ -106,8 +106,6 @@ private:
 	double noise_strength; // N^2s
 	boost::mt19937 rng;
 	boost::uniform_real<double> gen{ 0.0, 1.0 };
-	//std::uniform_real_distribution<double> a1_dis{ 0.0, 1.0 };
-	//std::uniform_real_distribution<double> a2_dis{ 0.0, 1.0 };
 	boost::variate_generator <boost::mt19937&, boost::uniform_real<double>> a_dis{ rng, gen };
 
 	// Link Cell Stuff
@@ -122,6 +120,7 @@ private:
 
 	// Lattice Alg Stuff
 	void make_ilist();
+	bool ilist_needs_update();
 	void clear_pindex();
 	void init_lattice_algorithm();
 	double rmin, rmax, gk;

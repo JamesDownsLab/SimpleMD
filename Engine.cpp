@@ -3,7 +3,9 @@
 void Engine::step()
 {
 	if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
-	else if (_options.optimiser == Optimiser::Lattice) { make_ilist(); }
+	else if (_options.optimiser == Optimiser::Lattice) {
+		if (ilist_needs_update()) { make_ilist(); }
+	}
 	
 	collision = false;
 	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
@@ -200,8 +202,6 @@ void Engine::make_forces()
 void Engine::make_random_forces()
 {
 	for (auto& p : particles) {
-		//double a1 = a1_dis(gen);
-		//double a2 = a2_dis(gen);
 		double a1 = a_dis();
 		double a2 = a_dis();
 		double K = sqrt(-4 * log(a1) * noise_strength / timestep);
@@ -432,7 +432,21 @@ void Engine::make_ilist()
 			}
 		}
 	}
-	clear_pindex();
+	//clear_pindex();
+}
+
+bool Engine::ilist_needs_update() {
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		int ix = int((x - x_0) / gk);
+		int iy = int((y - y_0) / gk);
+		if (pindex[ix][iy] != i) {
+			clear_pindex();
+			return true;
+		}
+	}
+	return false;
 }
 
 void Engine::clear_pindex()
