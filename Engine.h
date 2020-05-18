@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <vector>
 #include <random>
+#include <boost/random.hpp>
 #include <math.h>
 #include "Particle.h"
 #include <nanoflann.hpp>
@@ -39,8 +40,9 @@ class Engine
 {
 public:
 	Engine(const char* fname, ProgramOptions options) : 
-		_options{ options }, gen{ options.seed }
+		_options{ options }
 	{
+		rng.seed(options.seed);
 		init_system(fname);
 		if (options.optimiser == Optimiser::LinkCell) { init_link_cell_algorithm(); }
 		if (_options.optimiser == Optimiser::LinkedList) { init_lattice_algorithm(); }
@@ -98,18 +100,19 @@ private:
 	// Dimple stuff
 	std::vector<Vector> dimples;
 	double drag{ 1e-5 };
-	double dimple_rad{ 0.2e-3 };
-	int dim{ 2 };
-	int leaf_size{ 10 };
-	std::vector<std::vector<double>> empty{ {0.01, 0.01}, {0.01, 0.02} };
-	my_kd_tree_t mat_index{ dim, empty, leaf_size };
+	double dimple_rad2{ 0.2e-3 };
+	std::vector<std::vector<std::vector<Vector>>> dimples_list;
+	int nxd{ 10 }, nyd{ 10 };
+
 
 	// Random Force Stuff
 	const double PI = 3.1415926;
-	std::mt19937 gen;
 	double noise_strength; // N^2s
-	std::uniform_real_distribution<double> a1_dis{ 0.0, 1.0 };
-	std::uniform_real_distribution<double> a2_dis{ 0.0, 1.0 };
+	boost::mt19937 rng;
+	boost::uniform_real<double> gen{ 0.0, 1.0 };
+	//std::uniform_real_distribution<double> a1_dis{ 0.0, 1.0 };
+	//std::uniform_real_distribution<double> a2_dis{ 0.0, 1.0 };
+	boost::variate_generator <boost::mt19937&, boost::uniform_real<double>> a_dis{ rng, gen };
 
 	// Link Cell Stuff
 	void make_link_cell();

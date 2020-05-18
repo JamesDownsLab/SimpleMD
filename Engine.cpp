@@ -120,41 +120,30 @@ void Engine::init_system(const char* fname)
 
 void Engine::init_dimples()
 {
-	std::vector<double> pt;
-	std::vector<std::vector<double>> points;
-	points.reserve(dimples.size() * 9);
-	for (auto& d : dimples) {
-		double x = d.x();
-		double y = d.y();
-		pt = { x, y };
-		points.push_back(pt);
-		pt = { x - lx, y };
-		points.push_back(pt);
-		pt = { x - lx, y - ly };
-		points.push_back(pt);
-		pt = { x, y - ly };
-		points.push_back(pt);
-		pt = { x + lx, y - ly };
-		points.push_back(pt);
-		pt = { x + lx, y };
-		points.push_back(pt);
-		pt = { x + lx, y + ly };
-		points.push_back(pt);
-		pt = { x, y + ly };
-		points.push_back(pt);
-		pt = { x - lx, y + ly };
-		points.push_back(pt);
+	double dx = lx / nxd;
+	double dy = ly / nyd;
+	dimples_list.resize(nxd);
+	for (auto& col : dimples_list) {
+		col.resize(nyd);
 	}
-	mat_index.m_data.reserve(points.size());
-	for (int i{ 0 }; i < 2; i++) {
-		mat_index.m_data[i] = points[i];
-	}
-	for (int i{ 2 }; i < points.size(); i++) {
-		mat_index.m_data.push_back(points[i]);
-	}
-	mat_index.index->buildIndex();
-}
 
+	for (auto& d : dimples) {
+		// Find which bin the dimple sits in
+		int x = d.x() / dx;
+		int y = d.y() / dy;
+
+		// Add the dimple to all the surrounding lists of bins
+		for (int i{ x - 1 }; i < x + 2; i++) {
+			for (int j{ y - 1 }; j < y + 2; j++) {
+				int xi = i < 0 ? i + nxd : i;
+				int yj = j < 0 ? j + nyd : j;
+				if (xi == nxd) xi = 0;
+				if (yj == nyd) yj = 0;
+				dimples_list[xi][yj].push_back(d);
+			}
+		}
+	}
+}
 
 
 
@@ -208,8 +197,10 @@ void Engine::make_forces()
 void Engine::make_random_forces()
 {
 	for (auto& p : particles) {
-		double a1 = a1_dis(gen);
-		double a2 = a2_dis(gen);
+		//double a1 = a1_dis(gen);
+		//double a2 = a2_dis(gen);
+		double a1 = a_dis();
+		double a2 = a_dis();
 		double K = sqrt(-4 * log(a1) * noise_strength / timestep);
 		Vector f{ K * cos(2 * PI * a2), K * sin(2 * PI * a2) };
 		p.set_random_force(f);
@@ -298,41 +289,33 @@ void Engine::check_dump()
 	}
 }
 
-//void Engine::calculate_drags()
-//{
-//	for (auto& p : particles) {
-//		std::vector <double> dists;
-//		for (auto& d : dimples) {
-//			double dx = abs(p.x() - d.x());
-//			double dy = abs(p.y() - d.y());
-//			if (dx > lx / 2) { dx = lx - dx; }
-//			if (dy > ly / 2) { dy = ly - dy; }
-//			dists.emplace_back(dx * dx + dy * dy);
-//		}
-//		double distance = dists[*std::min_element(dists.begin(), dists.end())];
-//		if (distance < p.r() / 10) {
-//			p.set_drag(drag);
-//		}
-//		else p.set_drag(0);
-//
-//	}
-//}
 void Engine::calculate_drags()
 {
-	const size_t num_results = 2;
-	std::vector<size_t> ret_index(num_results);
-	std::vector<double> out_dist_sqr(num_results);
+	double dx = lx / nxd;
+	double dy = ly / nyd;
 	for (auto& p : particles) {
-		std::vector<double> query_pt{ p.x(), p.y() };
-		nanoflann::KNNResultSet<double> resultSet(num_results);
-		resultSet.init(&ret_index[0], &out_dist_sqr[0]);
-		mat_index.index->findNeighbors(resultSet, &query_pt[0], nanoflann::SearchParams(10));
-		if (out_dist_sqr[1] < p.r() / 10) {
+		int binx = p.x() / dx;
+		int biny = p.y() / dy;
+		size_t L{ dimples_list[binx][biny].size() };
+		//std::vector<double> dists(L);
+		double distance2 = 100.0;
+		for (auto& d : dimples_list[binx][biny]) {
+			double dx = abs(p.x() - d.x());
+			double dy = abs(p.y() - d.y());
+			if (dx > lx / 2) { dx = lx - dx; }
+			if (dy > ly / 2) { dy = ly - dy; }
+			double dist2 = dx * dx + dy * dy;
+			if (dist2 < distance2) {
+				distance2 = dist2;
+			}
+		}
+		if (distance2 < dimple_rad2) {
 			p.set_drag(drag);
 		}
 		else p.set_drag(0);
 	}
 }
+
 
 void Engine::dump()
 {
