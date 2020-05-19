@@ -26,7 +26,7 @@ int main()
     Engine engine("initial.random", options);
 
     int i{ 0 };
-    while (i < 100000) {
+    while (i < 10000000) {
         for (int j{ 0 }; j < 1e3; j++) engine.step();
         i += 1000;
         std::cout << "Step: " << i << " collisions: " << engine.collisions() << " Energy: " << engine.total_kinetic_energy() << " Force: " << engine.total_force() << "\n";

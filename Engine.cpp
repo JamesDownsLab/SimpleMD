@@ -242,7 +242,7 @@ void Engine::integrate()
 		make_random_forces();
 		correct_random_forces();
 	}
-	calculate_drags();
+	calculate_dimple_force();
 	
 
 	// Update the positions of all the particles 
@@ -292,30 +292,41 @@ void Engine::check_dump()
 	}
 }
 
-void Engine::calculate_drags()
+void Engine::calculate_dimple_force()
 {
-	double dx = lx / nxd;
-	double dy = ly / nyd;
+	double bx = lx / nxd;
+	double by = ly / nyd;
 	for (auto& p : particles) {
-		int binx = p.x() / dx;
-		int biny = p.y() / dy;
-		size_t L{ dimples_list[binx][biny].size() };
-		//std::vector<double> dists(L);
-		double distance2 = 100.0;
+		int binx = p.x() / bx;
+		int biny = p.y() / by;
+
+
 		for (auto& d : dimples_list[binx][biny]) {
-			double dx = abs(p.x() - d.x());
-			double dy = abs(p.y() - d.y());
-			if (dx > lx / 2) { dx = lx - dx; }
-			if (dy > ly / 2) { dy = ly - dy; }
-			double dist2 = dx * dx + dy * dy;
-			if (dist2 < distance2) {
-				distance2 = dist2;
+			double dx = p.x() - d.x();
+			dx = normalize(dx, lx);
+			if (abs(dx) < p.r() + dimple_rad) {
+				double dy = p.y() - d.y();
+				dy = normalize(dy, ly);
+				if (abs(dy) < p.r() + dimple_rad) {
+					double rr = sqrt(dx * dx + dy * dy);
+					if (rr > 0) {
+						double xi = p.r() + dimple_rad - rr;
+						double rr_rez = 1 / rr;
+						double ex = dx * rr_rez;
+						double ey = dy * rr_rez;
+
+
+						// Force
+						double elastic_force = -dimple_k * xi;
+						double fn = elastic_force;
+						if (fn > 0) fn = 0;
+						if (p.pstate() == ParticleState::Free) {
+							p.add_dimple_force(Vector(fn * ex, fn * ey));
+						}
+					}
+				}
 			}
 		}
-		if (distance2 < dimple_rad2) {
-			p.set_drag(drag);
-		}
-		else p.set_drag(0);
 	}
 }
 

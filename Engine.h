@@ -62,7 +62,7 @@ private:
 	void correct_random_forces();
 	void integrate();
 	void check_dump();
-	void calculate_drags();
+	
 	void dump();
 
 
@@ -94,11 +94,13 @@ private:
 	Vector G;
 
 	// Dimple stuff
+	void calculate_dimple_force();
 	std::vector<Vector> dimples;
 	double drag{ 1e-5 };
-	double dimple_rad2{ 0.2e-3 };
+	double dimple_rad{ 0.2e-3 };
 	std::vector<std::vector<std::vector<Vector>>> dimples_list;
 	int nxd{ 10 }, nyd{ 10 };
+	double dimple_k{ 100 };
 
 
 	// Random Force Stuff

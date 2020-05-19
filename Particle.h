@@ -50,14 +50,14 @@ public:
 
 	// Setters
 	void reset_contact() { _contact = false; }
-	void set_force_to_zero() { _force = null; }
+	void set_force_to_zero() { _force = null; _random_force = null; }
 	void init_rtd0_old(double dt) { rtd0_old = rtd0 - rtd1 * dt; }
-	void set_drag(double d) { _drag = d; }
 
 	Vector& random_force() { return _random_force; }
 	Vector random_force() const { return _random_force; }
 	void correct_random_force(Vector& correction) { _random_force += correction; }
 	void add_force(const Vector& f) { _force += f; }
+	void add_dimple_force(const Vector& f) { _dimple_force = f; }
 	void set_random_force(Vector& f) { _random_force = f; }
 	void periodic_bc(double x_0, double y_0, double lx, double ly);
 	void boundary_conditions(double timestep, double Time);
@@ -81,8 +81,9 @@ private:
 	Vector rtd0_old, rtd0_new;
 	Vector _force;
 	Vector _random_force{ null };
+	Vector _dimple_force{ null };
 	ParticleState _pstate{ ParticleState::Free };
-	double _r, _m, _k, _epsilon, _gamma, _drag;
+	double _r, _m, _k, _epsilon, _gamma;
 	bool _contact{ false }, _previous_contact{ false };
 	int _collisions{ 0 };
 };

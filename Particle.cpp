@@ -11,46 +11,48 @@ void force(Particle& p1, Particle& p2, double lx, double ly)
 {
 	double dx = normalize(p1.x() - p2.x(), lx);
 	double dy = normalize(p1.y() - p2.y(), ly);
-	double rr = sqrt(dx * dx + dy * dy);
-	double r1 = p1.r();
-	double r2 = p2.r();
+	if (abs(dx) < p1.r() + p2.r() && abs(dy) < p1.r() + p2.r()) {
+		double rr = sqrt(dx * dx + dy * dy);
+		double r1 = p1.r();
+		double r2 = p2.r();
 
-	// Overlap
-	double xi = r1 + r2 - rr;
+		// Overlap
+		double xi = r1 + r2 - rr;
 
-	if (xi > 0) { // If overlapping
-		p1._contact = true;
-		p2._contact = true;
+		if (xi > 0) { // If overlapping
+			p1._contact = true;
+			p2._contact = true;
 
-		// Unit Vectors
-		double rr_rez = 1 / rr;
-		double ex = dx * rr_rez;
-		double ey = dy * rr_rez;
+			// Unit Vectors
+			double rr_rez = 1 / rr;
+			double ex = dx * rr_rez;
+			double ey = dy * rr_rez;
 
-		// Relative velocities
-		double dvx = p1.vx() - p2.vx();
-		double dvy = p1.vy() - p2.vy();
+			// Relative velocities
+			double dvx = p1.vx() - p2.vx();
+			double dvy = p1.vy() - p2.vy();
 
-		// Overlap rate
-		double xidot = -(ex * dvx + ey * dvy);
+			// Overlap rate
+			double xidot = -(ex * dvx + ey * dvy);
 
-		// Average particle properties
-		double k = 0.5 * (p1._k + p2._k);
-		double gamma = 0.5 * (p1._gamma + p2._gamma);
+			// Average particle properties
+			double k = 0.5 * (p1._k + p2._k);
+			double gamma = 0.5 * (p1._gamma + p2._gamma);
 
-		// Normal Force
-		double elastic_force = k * xi;
-		double dissipative_force = gamma * xidot;
-		double fn = elastic_force + dissipative_force;
+			// Normal Force
+			double elastic_force = k * xi;
+			double dissipative_force = gamma * xidot;
+			double fn = elastic_force + dissipative_force;
 
-		// 
-		if (fn < 0) fn = 0;
+			// 
+			if (fn < 0) fn = 0;
 
-		if (p1.pstate() == ParticleState::Free) {
-			p1.add_force(Vector(fn * ex, fn * ey));
-		}
-		if (p2.pstate() == ParticleState::Free) {
-			p2.add_force(Vector(-fn * ex, -fn * ey));
+			if (p1.pstate() == ParticleState::Free) {
+				p1.add_force(Vector(fn * ex, fn * ey));
+			}
+			if (p2.pstate() == ParticleState::Free) {
+				p2.add_force(Vector(-fn * ex, -fn * ey));
+			}
 		}
 	}
 }
@@ -137,10 +139,9 @@ void Particle::gear_correct(double dt, Vector G)
 
 void Particle::position_verlet(double dt, double lx, double ly, Vector G)
 {
-	rtd2 = (_force + _random_force) * (1 / _m) + G;
+	rtd2 = (_force + _random_force + _dimple_force) * (1 / _m) + G;
 	Vector diff = rtd0 - rtd0_old;
 	diff.correct_bc(lx, ly);
-	diff *= (1 - _drag);
 	rtd0_new = rtd0 + diff + dt * dt * rtd2;
 	rtd1 = (rtd0_new - rtd0_old);
 	rtd1.correct_bc(lx, ly);
