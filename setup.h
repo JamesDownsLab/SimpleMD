@@ -10,6 +10,8 @@ struct SystemProperties {
 	double x_0;
 	double y_0;
 	double D; // Noise strength N^2s
+	double r_D; // dimple rad
+	double k_d; // dimple spring constant
 };
 
 SystemProperties sysProps{
@@ -18,7 +20,8 @@ SystemProperties sysProps{
 	4e-3, // ly
 	0.0, // x_0
 	0.0, // y_0
-	1e-8 // D
+	1e-8, // D
+
 };
 
 struct MaterialProperties {
@@ -52,7 +55,9 @@ void dump_preamble(std::ofstream& os, SystemProperties& p) {
 		<< "#ly: " << p.ly << "\n"
 		<< "#x_0: " << p.x_0 << "\n"
 		<< "#y_0: " << p.y_0 << "\n"
-		<< "#D: " << p.D << "\n";
+		<< "#D: " << p.D << "\n"
+		<< "#r_d: " << p.r_D << "\n"
+		<< "#k_d: " << p.k_d << "\n";
 }
 
 void dump_dimple(std::ofstream& os, double x, double y) {
@@ -100,15 +105,17 @@ void EnergyInputInvarience(double dt, double D) {
 	}
 }
 
-void DimpleTest() {
+void DimpleTest(double r, double k, double dt, double D) {
 	std::ofstream fout("initial.random");
 	SystemProperties props{
-		1e-7,
+		dt,
 		49e-3,
 		49e-3,
 		0.0,
 		0.0,
-		1e-8
+		D,
+		r,
+		k
 	};
 	MaterialProperties mprops{
 		0.0387e-3,

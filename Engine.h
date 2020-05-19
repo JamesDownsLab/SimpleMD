@@ -96,11 +96,10 @@ private:
 	// Dimple stuff
 	void calculate_dimple_force();
 	std::vector<Vector> dimples;
-	double drag{ 1e-5 };
-	double dimple_rad{ 0.2e-3 };
+	double dimple_rad;
 	std::vector<std::vector<std::vector<Vector>>> dimples_list;
 	int nxd{ 10 }, nyd{ 10 };
-	double dimple_k{ 100 };
+	double dimple_k;
 
 
 	// Random Force Stuff

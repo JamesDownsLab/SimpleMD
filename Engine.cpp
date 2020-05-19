@@ -91,6 +91,16 @@ void Engine::init_system(const char* fname)
 			fparticle.ignore(100, '\n');
 			std::cout << "D: " << noise_strength << std::endl;
 		}
+		else if (type == "#r_d:") {
+			fparticle >> dimple_rad;
+			fparticle.ignore(100, '\n');
+			std::cout << "dimple rad: " << dimple_rad << std::endl;
+		}
+		else if (type == "#k_d:") {
+			fparticle >> dimple_k;
+			fparticle.ignore(100, '\n');
+			std::cout << "dimple k: " << dimple_k << std::endl;
+		}
 		else {
 			std::cerr << "init: unknown global property: " << type << std::endl;
 			abort();
