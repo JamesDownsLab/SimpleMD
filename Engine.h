@@ -8,6 +8,9 @@
 #include <boost/random.hpp>
 #include <math.h>
 #include "Particle.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 enum class Integrator {
 	VerletPosition,
@@ -23,6 +26,7 @@ enum class Optimiser {
 };
 
 struct ProgramOptions {
+	fs::path savepath;
 	Integrator integrator;
 	Optimiser optimiser;
 	double save_interval;
@@ -37,6 +41,7 @@ public:
 	Engine(const char* fname, ProgramOptions options) : 
 		_options{ options }
 	{
+		f1 = fopen(_options.savepath.string().c_str(), "w");
 		rng.seed(options.seed);
 		init_system(fname);
 		if (options.optimiser == Optimiser::LinkCell) { init_link_cell_algorithm(); }
@@ -78,7 +83,7 @@ private:
 	int _collisions{ 0 };
 
 	// File Writing
-	FILE* f1 = std::fopen("C:/Users/james/Data/output.dump", "w");
+	std::FILE* f1;
 	int save{ 1 };
 
 
@@ -98,7 +103,7 @@ private:
 	std::vector<Vector> dimples;
 	double dimple_rad;
 	std::vector<std::vector<std::vector<Vector>>> dimples_list;
-	int nxd{ 10 }, nyd{ 10 };
+	int nxd{ 20 }, nyd{ 20 };
 	double dimple_k;
 
 

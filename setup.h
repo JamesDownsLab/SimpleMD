@@ -2,6 +2,7 @@
 #include <fstream>
 #include <random>
 #include <math.h>
+#include "HexagonalGrid.h"
 
 struct SystemProperties {
 	double timestep;
@@ -63,6 +64,41 @@ void dump_preamble(std::ofstream& os, SystemProperties& p) {
 void dump_dimple(std::ofstream& os, double x, double y) {
 	os << "%dimple: " << x << " " << y << "\n";
 }
+
+
+void HexGrid(double L, int Ndx, int Ndy, double dt, double D, int Nx, int Ny, double v0, 
+	double rd, double kd) {
+	GridResult dimple_result = make_grid(L, Ndx, Ndy);
+	std::ofstream fout("initial.random");
+	SystemProperties props{
+		dt,
+		dimple_result.lx,
+		dimple_result.ly,
+		0.0,
+		0.0,
+		D,
+		rd,
+		kd
+	};
+	dump_preamble(fout, props);
+	GridResult particle_result = make_grid(4.2e-3, Nx, Ny);
+	std::mt19937 gen(1);
+	std::uniform_real_distribution<double> dis(0.0, 2 * PI);
+	for (auto& d : dimple_result.coords) {
+		double x = d.first;
+		double y = d.second;
+		dump_dimple(fout, d.first, d.second);
+	}
+	for (auto& p : particle_result.coords) {
+		double vx = v0 * cos(dis(gen));
+		double vy = v0 * sin(dis(gen));
+		double x = p.first;
+		double y = p.second;
+		dump(fout, x, y, vx, vy, 0, matProps);
+	}
+
+}
+
 
 void TwoBalls() {
 	std::ofstream fout("initial.random");

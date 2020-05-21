@@ -346,12 +346,15 @@ void Engine::dump()
 	std::fprintf(f1, "ITEM: TIMESTEP\n%d\n", int(Time / timestep));
 	std::fprintf(f1, "ITEM: TIME\n%.8f\n", Time);
 	std::fprintf(f1, "ITEM: BOX BOUNDS pp pp f\n%.4f %.4f\n%.4f %.4f\n-0.002 0.002\n", x_0, x_0 + lx, y_0, y_0 + ly);
-	std::fprintf(f1, "ITEM: NUMBER OF ATOMS\n%d\n", no_of_particles);
+	std::fprintf(f1, "ITEM: NUMBER OF ATOMS\n%d\n", no_of_particles+dimples.size());
 	std::fprintf(f1, "ITEM: KINETIC ENERGY\n%.3e\n", total_kinetic_energy());
 	std::fprintf(f1, "ITEM: COLLISION\n%d\n", collision);
 	std::fprintf(f1, "ITEM: ATOMS x y z vx vy radius type contact\n");
 	for (Particle& p : particles) {
 		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", p.x(), p.y(), 0.0, p.vx(), p.vy(), p.r(), p.pstate(), p.contact());
+	}
+	for (Vector& d : dimples) {
+		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", d.x(), d.y(), 0.0, 0.0, 0.0, dimple_rad, 2, 0);
 	}
 }
 
