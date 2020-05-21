@@ -13,6 +13,7 @@ struct SystemProperties {
 	double D; // Noise strength N^2s
 	double r_D; // dimple rad
 	double k_d; // dimple spring constant
+	double DL; // dimple spacing
 };
 
 SystemProperties sysProps{
@@ -58,7 +59,8 @@ void dump_preamble(std::ofstream& os, SystemProperties& p) {
 		<< "#y_0: " << p.y_0 << "\n"
 		<< "#D: " << p.D << "\n"
 		<< "#r_d: " << p.r_D << "\n"
-		<< "#k_d: " << p.k_d << "\n";
+		<< "#k_d: " << p.k_d << "\n"
+		<< "#DL: " << p.DL << "\n";
 }
 
 void dump_dimple(std::ofstream& os, double x, double y) {
@@ -78,7 +80,8 @@ void HexGrid(double L, int Ndx, int Ndy, double dt, double D, int Nx, int Ny, do
 		0.0,
 		D,
 		rd,
-		kd
+		kd,
+		L
 	};
 	dump_preamble(fout, props);
 	GridResult particle_result = make_grid(4.2e-3, Nx, Ny);

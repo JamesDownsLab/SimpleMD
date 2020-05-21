@@ -2,7 +2,6 @@
 
 #include <vector>
 
-double SQRT3 = sqrt(3);
 
 struct GridResult
 {

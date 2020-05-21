@@ -15,10 +15,10 @@ int main()
 {
     // setup
     //DimpleTest(1e-3, 10, 1e-6, 1e-9);
-    double dimple_rad = 1e-3;
-    double D = 1e-5;
+    double dimple_rad = 0.2e-3;
+    double D = 1e-8;
     double Dend = 1e-8;
-    HexGrid(4.8e-3, 20, 34, 1e-6, D, 22, 36, 1.0, dimple_rad, 10);
+    HexGrid(4.8e-3, 5, 5, 1e-6, D, 5, 5, 1.0, dimple_rad, 100);
     fs::path savepath = "C:\\Users\\james\\Data\\output.dump";
     std::cout << savepath.string() << "\n";
     ProgramOptions options{
@@ -40,8 +40,8 @@ int main()
     int i{ 0 };
     while (i < NsmallSteps*smallStep) {
         for (int j{ 0 }; j < smallStep; j++) engine.step();
-        D -= dD;
-        engine.set_noise(D);
+        //D -= dD;
+        //engine.set_noise(D);
         i += smallStep;
         std::cout << "Step: " << i << " collisions: " << engine.collisions() << " Energy: " << engine.total_kinetic_energy() << " Force: " << engine.total_force() << "\n";
     }

@@ -101,6 +101,11 @@ void Engine::init_system(const char* fname)
 			fparticle.ignore(100, '\n');
 			std::cout << "dimple k: " << dimple_k << std::endl;
 		}
+		else if (type == "#DL:") {
+			fparticle >> dimple_spacing;
+			fparticle.ignore(100, '\n');
+			std::cout << "dimple spacing: " << dimple_spacing << std::endl;
+		}
 		else {
 			std::cerr << "init: unknown global property: " << type << std::endl;
 			abort();
@@ -302,38 +307,117 @@ void Engine::check_dump()
 	}
 }
 
+//void Engine::calculate_dimple_force()
+//{
+//	double bx = lx / nxd;
+//	double by = ly / nyd;
+//	for (auto& p : particles) {
+//		int binx = p.x() / bx;
+//		int biny = p.y() / by;
+//
+//
+//		for (auto& d : dimples_list[binx][biny]) {
+//			double dx = p.x() - d.x();
+//			dx = normalize(dx, lx);
+//			if (abs(dx) < p.r() + dimple_rad) {
+//				double dy = p.y() - d.y();
+//				dy = normalize(dy, ly);
+//				if (abs(dy) < p.r() + dimple_rad) {
+//					double rr = sqrt(dx * dx + dy * dy);
+//					if (rr > 0) {
+//						double xi = p.r() + dimple_rad - rr;
+//						double rr_rez = 1 / rr;
+//						double ex = dx * rr_rez;
+//						double ey = dy * rr_rez;
+//
+//
+//						// Force
+//						double elastic_force = -dimple_k * xi;
+//						double fn = elastic_force;
+//						if (fn > 0) fn = 0;
+//						if (p.pstate() == ParticleState::Free) {
+//							p.add_dimple_force(Vector(fn * ex, fn * ey));
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
+//}
+
 void Engine::calculate_dimple_force()
 {
-	double bx = lx / nxd;
-	double by = ly / nyd;
-	for (auto& p : particles) {
-		int binx = p.x() / bx;
-		int biny = p.y() / by;
-
-
-		for (auto& d : dimples_list[binx][biny]) {
-			double dx = p.x() - d.x();
-			dx = normalize(dx, lx);
-			if (abs(dx) < p.r() + dimple_rad) {
-				double dy = p.y() - d.y();
-				dy = normalize(dy, ly);
-				if (abs(dy) < p.r() + dimple_rad) {
-					double rr = sqrt(dx * dx + dy * dy);
-					if (rr > 0) {
-						double xi = p.r() + dimple_rad - rr;
-						double rr_rez = 1 / rr;
-						double ex = dx * rr_rez;
-						double ey = dy * rr_rez;
-
-
-						// Force
-						double elastic_force = -dimple_k * xi;
-						double fn = elastic_force;
-						if (fn > 0) fn = 0;
-						if (p.pstate() == ParticleState::Free) {
-							p.add_dimple_force(Vector(fn * ex, fn * ey));
-						}
-					}
+	double dlx = sqrt(3) * dimple_spacing;
+	double dly = dimple_spacing;
+	for (auto& p : particles)
+	{
+		double dx = fmod(p.x(), dlx);
+		double dy = fmod(p.y(), dly);
+		if (dx < dlx / 2) {
+			if (dy < dly / 2) {
+				double r2_a = dx * dx + dy * dy;
+				double r2_b = (dlx / 2 - dx) * (dlx / 2 - dx) + (dly / 2 - dy) * (dly / 2 - dy);
+				if (r2_a < r2_b) {
+					dx = -dx;
+					dy = -dy;
+				}
+				else {
+					dx = (dlx / 2 - dx);
+					dy = (dly / 2 - dy);
+				}
+			}
+			else {
+				double r2_a = dx * dx + (dly - dy) * (dly - dy);
+				double r2_b = (dlx - dx) * (dlx - dx) + (dy - dly / 2) * (dy - dly / 2);
+				if (r2_a < r2_b) {
+					dx = -dx;
+					dy = (dly - dy);
+				}
+				else {
+					dx = (dlx / 2 - dx);
+					dy = -(dy - dly / 2);
+				}
+			}
+		}
+		else {
+			if (dy < dly / 2) {
+				double r2_a = (dlx - dx) * (dlx - dx) + dy * dy;
+				double r2_b = (dlx / 2 - dx) * (dlx / 2 - dx) + (dly / 2 - dy) * (dly / 2 - dy);
+				if (r2_a < r2_b) {
+					dx = dlx - dx;
+					dy = -dy;
+				}
+				else {
+					dx = -(dx - dlx / 2);
+					dy = dly / 2 - dy;
+				}
+			}
+			else {
+				double r2_a = (dlx - dx) * (dlx - dx) + (dly - dy) * (dly - dy);
+				double r2_b = (dlx / 2 - dx) * (dlx / 2 - dx) + (dy - dly / 2) * (dy - dly / 2);
+				if (r2_a < r2_b) {
+					dx = dlx - dx;
+					dy = dly - dy;
+				}
+				else {
+					dx = -(dx - dlx / 2);
+					dy = -(dy - dly / 2);
+				}
+			}
+		}
+		if (abs(dx) < p.x() + dimple_rad && abs(dy) < p.y() + dimple_rad) {
+			double rr = sqrt(dx * dx + dy * dy);
+			if (rr > 0) {
+				double xi = p.r() + dimple_rad - rr;
+				double rr_rez = 1 / rr;
+				double ex = dx * rr_rez;
+				double ey = dy * rr_rez;
+				// Force
+				double elastic_force = dimple_k * xi;
+				double fn = elastic_force;
+				//if (fn > 0) fn = 0;
+				if (p.pstate() == ParticleState::Free) {
+					p.add_dimple_force(Vector(fn * ex, fn * ey));
 				}
 			}
 		}

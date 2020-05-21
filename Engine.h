@@ -10,6 +10,8 @@
 #include "Particle.h"
 #include <filesystem>
 
+const double SQRT3 = sqrt(3);
+
 namespace fs = std::filesystem;
 
 enum class Integrator {
@@ -104,7 +106,7 @@ private:
 	double dimple_rad;
 	std::vector<std::vector<std::vector<Vector>>> dimples_list;
 	int nxd{ 20 }, nyd{ 20 };
-	double dimple_k;
+	double dimple_k, dimple_spacing;
 
 
 	// Random Force Stuff
