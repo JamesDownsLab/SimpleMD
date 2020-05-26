@@ -3,8 +3,8 @@
 #include <iostream>
 
 enum class ParticleState {
-	Free,
-	Confined
+  Free,
+  Confined
 };
 
 std::ostream& operator<<(std::ostream& os, const ParticleState& state);
