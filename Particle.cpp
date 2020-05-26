@@ -1,4 +1,7 @@
 #include "Particle.h"
+//////////////////////////////////////////////
+/// Friend Functions
+//////////////////////////////////////////////
 
 double Distance(const Particle& p1, const Particle& p2, double lx, double ly)
 {
@@ -57,6 +60,10 @@ void force(Particle& p1, Particle& p2, double lx, double ly)
 	}
 }
 
+/////////////////////////////////////////////
+/// Operator Functions
+/////////////////////////////////////////////
+
 std::istream& operator>>(std::istream& is, Particle& p)
 {
 	is >> p.rtd0 >> p.rtd1
@@ -78,16 +85,16 @@ std::ostream& operator<<(std::ostream& os, const Particle& p)
 	return os;
 }
 
+////////////////////////////////////////////
+/// Boundary Conditions
+////////////////////////////////////////////
+
 void Particle::periodic_bc(double x_0, double y_0, double lx, double ly)
 {
 	while (rtd0.x() < x_0) rtd0.x() += lx;
 	while (rtd0.x() > x_0 + lx) rtd0.x() -= lx;
 	while (rtd0.y() < y_0) rtd0.y() += ly;
 	while (rtd0.y() > y_0 + ly) rtd0.y() -= ly;
-	//while (rtd0_old.x() < x_0) rtd0_old.x() += lx;
-	//while (rtd0_old.x() > x_0 + lx) rtd0_old.x() -= lx;
-	//while (rtd0_old.y() < y_0) rtd0_old.y() += ly;
-	//while (rtd0_old.y() > y_0 + ly) rtd0_old.y() -= ly;
 }
 
 void Particle::boundary_conditions(double timestep, double Time)
@@ -103,6 +110,10 @@ void Particle::boundary_conditions(double timestep, double Time)
 		}
 	}
 }
+
+///////////////////////////////////////////
+/// Integration Steps
+///////////////////////////////////////////
 
 void Particle::gear_predict(double dt)
 {
@@ -162,7 +173,9 @@ void Particle::velocity_verlet(double dt, Vector G)
 	rtd2 = new_rtd2;
 }
 
-
+/////////////////////////////////////////
+/// Extra Functions
+/////////////////////////////////////////
 void Particle::update_collisions()
 {
 	if (_contact == 0 && _previous_contact != _contact) {
