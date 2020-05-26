@@ -110,9 +110,6 @@ Engine::Engine(const char* fname, ProgramOptions options) : _options{options}
   f1 = fopen(_options.savepath.string().c_str(), "w");
   rng.seed(options.seed);
   init_system(fname);
-  if (options.optimiser == Optimiser::LinkCell) { 
-    init_link_cell_algorithm(); 
-  }
   if (_options.optimiser == Optimiser::Lattice) { 
     init_lattice_algorithm(); 
   }
@@ -121,8 +118,7 @@ Engine::Engine(const char* fname, ProgramOptions options) : _options{options}
 void Engine::step()
 {
   // Check whether the optimiser needs updating
-  if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
-  else if (_options.optimiser == Optimiser::Lattice) {
+  if (_options.optimiser == Optimiser::Lattice) {
     if (ilist_needs_update()) { make_ilist(); }
   }
   
@@ -197,34 +193,7 @@ void Engine::integrate()
 
 void Engine::make_forces()
 {
-  if (_options.optimiser == Optimiser::LinkCell) {
-    // for all cells
-    for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
-      for (unsigned int iy{ 0 }; iy < linkCell[ix].size(); iy++) {
-        for (unsigned int j{ 0 }; j < linkCell[ix][iy].size(); j++) {
-          int pj = linkCell[ix][iy][j];
-
-          // force between all particles in the same cell
-          for (unsigned int k{ j + 1 }; k < linkCell[ix][iy].size(); k++) {
-            int pk = linkCell[ix][iy][k];
-            force(particles[pj], particles[pk], lx, ly);
-          }
-
-          // force between particles in neighbouring cells
-          for (unsigned int n{ 0 }; n < neighbours[ix][iy].size(); n++) {
-            int iix = neighbours[ix][iy][n].first;
-            int iiy = neighbours[ix][iy][n].second;
-
-            for (unsigned int k{ 0 }; k < linkCell[iix][iiy].size(); k++) {
-              int pk = linkCell[iix][iiy][k];
-              force(particles[pj], particles[pk], lx, ly);
-            }
-          }
-        }
-      }
-    }
-  }
-  else if (_options.optimiser == Optimiser::Lattice) {
+  if (_options.optimiser == Optimiser::Lattice) {
     // Loop over the partners list for each particle
     for (unsigned int i{ 0 }; i < no_of_particles; i++) {
       for (unsigned int k{ 0 }; k < partners[i].size(); k++) {
@@ -438,77 +407,6 @@ void Engine::clear_pindex()
       q = -1;
     }
   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Link Cell
-///////////////////////////////////////////////////////////////////////////////
-
-void Engine::make_link_cell()
-{
-  // Lists are emptied
-  for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
-    for (unsigned int iy{ 0 }; iy < linkCell[ix].size(); iy++) {
-      linkCell[ix][iy].clear();
-    }
-  }
-
-  // Assign each particle a box which contains its center.
-  for (int i{ 0 }; i < no_of_particles; i++) {
-    int ix = int(nx * (particles[i].x() - x_0) / lx);
-    int iy = int(ny * (particles[i].y() - y_0) / ly);
-    if ((ix >= 0) && (ix < nx) && (iy >= 0) && (iy < ny)) {
-      linkCell[ix][iy].push_back(i);
-    }
-    else {
-      std::cerr << "Particle " << i << " outside simulation area\n";
-      exit(0);
-    }
-  }
-}
-
-bool Engine::is_valid_neighbour(int ix, int iy, int iix, int iiy)
-{
-  // check whether boxes have to be recorded.
-  if ((iix == (ix - 1 + nx) % nx) && (iiy == (iy + 1 + ny) % ny)) return true;
-  if ((iix == (ix + nx) % nx) && (iiy == ((iy + 1 + ny) % ny))) return true;
-  if ((iix == (ix + 1 + nx) % nx) && (iiy == (iy + 1 + ny) % ny)) return true;
-  if ((iix == (ix + 1 + nx) % nx) && (iiy == (iy + ny) % ny)) return true;
-  return false;
-}
-
-void Engine::init_neighbours()
-{
-  int iix, iiy;
-
-  neighbours.resize(nx);
-  for (int ix{ 0 }; ix < nx; ix++) {
-    neighbours[ix].resize(ny);
-  }
-
-  for (int ix{ 0 }; ix < nx; ix++) {
-    for (int iy{ 0 }; iy < ny; iy++) {
-      for (int dx{ -1 }; dx <= 1; dx++) {
-        for (int dy{ -1 }; dy < 1; dy++) {
-          iix = (ix + dx + nx) % nx;
-          iiy = (iy + dy + ny) % ny;
-          if (is_valid_neighbour(ix, iy, iix, iiy)) {
-            neighbours[ix][iy].push_back(std::pair<int, int>(iix, iiy));
-          }
-        }
-      }
-    }
-  }
-}
-
-void Engine::init_link_cell_algorithm()
-{
-  linkCell.resize(nx);
-  for (unsigned int ix{ 0 }; ix < linkCell.size(); ix++) {
-    linkCell[ix].resize(ny);
-  }
-  init_neighbours();
-  make_link_cell();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
