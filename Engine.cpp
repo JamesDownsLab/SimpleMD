@@ -1,12 +1,13 @@
 #include "Engine.h"
 
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Initialisation
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void Engine::init_system(const char* fname)
 {
   std::ifstream fparticle{ fname };
+  // Read the system properties
   while (fparticle.peek() == '#') {
     std::string type;
     fparticle >> type;
@@ -71,6 +72,7 @@ void Engine::init_system(const char* fname)
     }
   }
 
+  // Read the dimples
   while (fparticle.peek() == '%') {
     std::string type;
     fparticle >> type;
@@ -82,6 +84,7 @@ void Engine::init_system(const char* fname)
     }
   }
 
+  // Read the particles
   while (fparticle) {
     Particle pp;
     fparticle >> pp;
@@ -97,22 +100,39 @@ void Engine::init_system(const char* fname)
   dump();
 }
 
-//////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Main Steps
-/////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+Engine::Engine(const char* fname, ProgramOptions options) : _options{options}
+{
+  f1 = fopen(_options.savepath.string().c_str(), "w");
+  rng.seed(options.seed);
+  init_system(fname);
+  if (options.optimiser == Optimiser::LinkCell) { 
+    init_link_cell_algorithm(); 
+  }
+  if (_options.optimiser == Optimiser::Lattice) { 
+    init_lattice_algorithm(); 
+  }
+}
 
 void Engine::step()
 {
+  // Check whether the optimiser needs updating
   if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
   else if (_options.optimiser == Optimiser::Lattice) {
     if (ilist_needs_update()) { make_ilist(); }
   }
   
+  // Collision counting
   collision = false;
   std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
   
   integrate();
 
+  // More collision counting
   auto result = std::find_if(particles.begin(), particles.end(), [](auto& p) { return p.contact(); });
   collision = result == std::end(particles) ? false : true;
   std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
@@ -171,9 +191,9 @@ void Engine::integrate()
   Time += timestep;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Calculating Forces
-//////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void Engine::make_forces()
 {
@@ -205,6 +225,7 @@ void Engine::make_forces()
     }
   }
   else if (_options.optimiser == Optimiser::Lattice) {
+    // Loop over the partners list for each particle
     for (unsigned int i{ 0 }; i < no_of_particles; i++) {
       for (unsigned int k{ 0 }; k < partners[i].size(); k++) {
         int pk = partners[i][k];
@@ -213,6 +234,7 @@ void Engine::make_forces()
     }
   }
   else {
+    // Loop over all pairs of particles
     for (unsigned int i{ 0 }; i < no_of_particles; i++) {
       for (unsigned int k{ i + 1 }; k < no_of_particles; k++) {
         force(particles[i], particles[k], lx, ly);
@@ -224,6 +246,7 @@ void Engine::make_forces()
 
 void Engine::make_random_forces()
 {
+  // Add a random force to each particle using David Bray's method
   for (auto& p : particles) {
     double a1 = a_dis();
     double a2 = a_dis();
@@ -235,10 +258,13 @@ void Engine::make_random_forces()
 
 void Engine::correct_random_forces()
 {
+  // Calculate the net random force
   Vector total_force{ null };
   for (auto& p : particles) {
     total_force += p.random_force();
   }
+
+  // Subtract a share of this force from each particle
   total_force *= (-1.0 / no_of_particles);
   for (auto& p : particles) {
     p.correct_random_force(total_force);
@@ -324,12 +350,13 @@ void Engine::calculate_dimple_force()
   }
 }
 
-//////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Lattice Method 
-//////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void Engine::init_lattice_algorithm()
 {
+  // Calcualte gk, the size of the lattice sites
   rmin = particles[0].r();
   rmax = particles[0].r();
   for (auto& p : particles) {
@@ -337,7 +364,11 @@ void Engine::init_lattice_algorithm()
     if (p.r() > rmax) rmax = p.r();
   }
   gk = sqrt(2) * rmin;
+
+  // Calculate gm, the number of lattice sites that the largest particle covers
   gm = int(2 * rmax / gk) + 1;
+
+  // Calculate the number of lattice sites in each dimension
   Nx = int(lx / gk) + 1;
   Ny = int(ly / gk + 1);
   partners.resize(no_of_particles);
@@ -351,28 +382,31 @@ void Engine::init_lattice_algorithm()
 
 void Engine::make_ilist()
 {
+  // For each particle, add it to the pindex lattice site
+  // and clear its partners
   for (unsigned int i{ 0 }; i < no_of_particles; i++) {
     double x = particles[i].x();
     double y = particles[i].y();
-    //if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
     int ix = int((x - x_0) / gk);
     int iy = int((y - y_0) / gk);
     pindex[ix][iy] = i;
     partners[i].clear();
-    //}
   }
 
+  // Generate the partners list for each particle
   for (unsigned int i{ 0 }; i < no_of_particles; i++) {
     double x = particles[i].x();
     double y = particles[i].y();
     if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
       int ix = int((x - x_0) / gk);
       int iy = int((y - y_0) / gk);
+      // Check the adjacent gm lattice sites for particles
       for (int dx = -gm; dx <= gm; dx++) {
         for (int dy = -gm; dy <= gm; dy++) {
           int iix = (ix + dx + Nx) % Nx;
           int iiy = (iy + dy + Ny) % Ny;
           int k = pindex[iix][iiy];
+          // Only record the particle once
           if (k > (int)i) {
             partners[i].push_back(k);
           }
@@ -383,6 +417,7 @@ void Engine::make_ilist()
 }
 
 bool Engine::ilist_needs_update() {
+  // If the pindex is the same as last time then it doesn't need updating
   for (unsigned int i{ 0 }; i < no_of_particles; i++) {
     double x = particles[i].x();
     double y = particles[i].y();
@@ -405,9 +440,9 @@ void Engine::clear_pindex()
   }
 }
 
-////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Link Cell
-////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void Engine::make_link_cell()
 {
@@ -476,9 +511,9 @@ void Engine::init_link_cell_algorithm()
   make_link_cell();
 }
 
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Dumping
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void Engine::check_dump()
 {
@@ -517,9 +552,9 @@ void Engine::dump()
   }
 }
 
-///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /// Extra Calculations
-///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 int Engine::collisions()
 {
