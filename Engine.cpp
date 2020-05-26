@@ -1,49 +1,8 @@
 #include "Engine.h"
 
-void Engine::step()
-{
-	if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
-	else if (_options.optimiser == Optimiser::Lattice) {
-		if (ilist_needs_update()) { make_ilist(); }
-	}
-	
-	collision = false;
-	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
-	
-	integrate();
-
-	auto result = std::find_if(particles.begin(), particles.end(), [](auto& p) { return p.contact(); });
-	collision = result == std::end(particles) ? false : true;
-	std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
-
-
-	check_dump();
-}
-
-int Engine::collisions()
-{
-	int sum{ 0 };
-	std::for_each(particles.begin(), particles.end(), [&](auto& p) {sum += p.collisions(); });
-	return sum;
-}
-
-double Engine::total_kinetic_energy()
-{
-	double energy{ 0 };
-	for (auto& p : particles) {
-		energy += p.kinetic_energy();
-	}
-	return energy;
-}
-
-double Engine::total_force()
-{
-	double f{ 0 };
-	for (auto& p : particles) {
-		f += p.force().length();
-	}
-	return f;
-}
+//////////////////////////////////////////////////////////////////
+/// Initialisation
+//////////////////////////////////////////////////////////////////
 
 void Engine::init_system(const char* fname)
 {
@@ -138,34 +97,83 @@ void Engine::init_system(const char* fname)
 	dump();
 }
 
-void Engine::init_dimples()
+//////////////////////////////////////////////////////////////////////////////
+/// Main Steps
+/////////////////////////////////////////////////////////////////////////////
+
+void Engine::step()
 {
-	double dx = lx / nxd;
-	double dy = ly / nyd;
-	dimples_list.resize(nxd);
-	for (auto& col : dimples_list) {
-		col.resize(nyd);
+	if (_options.optimiser == Optimiser::LinkCell) { make_link_cell(); }
+	else if (_options.optimiser == Optimiser::Lattice) {
+		if (ilist_needs_update()) { make_ilist(); }
 	}
+	
+	collision = false;
+	std::for_each(particles.begin(), particles.end(), [&](auto& p) {p.reset_contact(); });
+	
+	integrate();
 
-	for (auto& d : dimples) {
-		// Find which bin the dimple sits in
-		int x = d.x() / dx;
-		int y = d.y() / dy;
+	auto result = std::find_if(particles.begin(), particles.end(), [](auto& p) { return p.contact(); });
+	collision = result == std::end(particles) ? false : true;
+	std::for_each(particles.begin(), particles.end(), [](auto& p) {p.update_collisions(); });
 
-		// Add the dimple to all the surrounding lists of bins
-		for (int i{ x - 1 }; i < x + 2; i++) {
-			for (int j{ y - 1 }; j < y + 2; j++) {
-				int xi = i < 0 ? i + nxd : i;
-				int yj = j < 0 ? j + nyd : j;
-				if (xi == nxd) xi = 0;
-				if (yj == nyd) yj = 0;
-				dimples_list[xi][yj].push_back(d);
-			}
-		}
-	}
+
+	check_dump();
 }
 
+void Engine::integrate()
+{
+	// Set forces to zero and move particles that belong to moving boundaries
+	std::for_each(particles.begin(), particles.end(),
+		[&](Particle& p) {
+			if (p.pstate() == ParticleState::Free) {
+				p.set_force_to_zero();
+				if (_options.integrator == Integrator::Gear) p.gear_predict(timestep);
+			}
+			else {
+				p.boundary_conditions(timestep, Time);
+			}
+		});
 
+	// Calculate all the forces between particles
+	make_forces();
+	if (_options.random_force == true) {
+		make_random_forces();
+		correct_random_forces();
+	}
+	calculate_dimple_force();
+
+
+	// Update the positions of all the particles 
+	std::for_each(particles.begin(), particles.end(),
+		[&](Particle& p) {
+			if (p.pstate() == ParticleState::Free) {
+				switch (_options.integrator)
+				{
+				case Integrator::VerletPosition:
+					p.position_verlet(timestep, lx, ly, G);
+					break;
+				case Integrator::VerletVelocity:
+					p.velocity_verlet(timestep, G);
+					break;
+				case Integrator::Gear:
+					p.gear_correct(timestep, G);
+					break;
+				default:
+					break;
+				}
+			}
+		});
+
+	// Apply periodic boundary conditions
+	std::for_each(particles.begin(), particles.end(),
+		[&](Particle& p) {p.periodic_bc(x_0, y_0, lx, ly); });
+	Time += timestep;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////
+/// Calculating Forces
+//////////////////////////////////////////////////////////////////////////////////////
 
 void Engine::make_forces()
 {
@@ -236,114 +244,6 @@ void Engine::correct_random_forces()
 		p.correct_random_force(total_force);
 	}
 }
-
-void Engine::integrate()
-{
-	// Set forces to zero and move particles that belong to moving boundaries
-	std::for_each(particles.begin(), particles.end(),
-		[&](Particle& p) {
-			if (p.pstate() == ParticleState::Free) {
-				p.set_force_to_zero();
-				if (_options.integrator == Integrator::Gear) p.gear_predict(timestep);
-			}
-			else {
-				p.boundary_conditions(timestep, Time);
-			}
-		});
-
-	// Calculate all the forces between particles
-	make_forces();
-	if (_options.random_force == true) {
-		make_random_forces();
-		correct_random_forces();
-	}
-	calculate_dimple_force();
-	
-
-	// Update the positions of all the particles 
-	std::for_each(particles.begin(), particles.end(),
-		[&](Particle& p) {
-			if (p.pstate() == ParticleState::Free) {
-				switch (_options.integrator)
-				{
-				case Integrator::VerletPosition:
-					p.position_verlet(timestep, lx, ly, G);
-					break;
-				case Integrator::VerletVelocity:
-					p.velocity_verlet(timestep, G);
-					break;
-				case Integrator::Gear:
-					p.gear_correct(timestep, G);
-					break;
-				default:
-					break;
-				}
-			}
-		});
-
-	// Apply periodic boundary conditions
-	std::for_each(particles.begin(), particles.end(),
-		[&](Particle& p) {p.periodic_bc(x_0, y_0, lx, ly); });
-	Time += timestep;
-}
-
-void Engine::check_dump()
-{
-	if (save != _options.save_interval) {
-		save++;
-	}
-	else {
-		//if (!collision) {
-		save = 1;
-		dump();
-		//}
-	}
-	if (_options.save_on_collision == true) {
-		_collisions = collisions();
-		if (_collisions != _last_collisions) {
-			dump();
-		}
-		_last_collisions = _collisions;
-	}
-}
-
-//void Engine::calculate_dimple_force()
-//{
-//	double bx = lx / nxd;
-//	double by = ly / nyd;
-//	for (auto& p : particles) {
-//		int binx = p.x() / bx;
-//		int biny = p.y() / by;
-//
-//
-//		for (auto& d : dimples_list[binx][biny]) {
-//			double dx = p.x() - d.x();
-//			dx = normalize(dx, lx);
-//			if (abs(dx) < p.r() + dimple_rad) {
-//				double dy = p.y() - d.y();
-//				dy = normalize(dy, ly);
-//				if (abs(dy) < p.r() + dimple_rad) {
-//					double rr = sqrt(dx * dx + dy * dy);
-//					if (rr > 0) {
-//						double xi = p.r() + dimple_rad - rr;
-//						double rr_rez = 1 / rr;
-//						double ex = dx * rr_rez;
-//						double ey = dy * rr_rez;
-//
-//
-//						// Force
-//						double elastic_force = -dimple_k * xi;
-//						double fn = elastic_force;
-//						if (fn > 0) fn = 0;
-//						if (p.pstate() == ParticleState::Free) {
-//							p.add_dimple_force(Vector(fn * ex, fn * ey));
-//						}
-//					}
-//				}
-//			}
-//		}
-//	}
-//}
 
 void Engine::calculate_dimple_force()
 {
@@ -424,23 +324,90 @@ void Engine::calculate_dimple_force()
 	}
 }
 
+//////////////////////////////////////////////////////////////////////
+/// Lattice Method 
+//////////////////////////////////////////////////////////////////////
 
-void Engine::dump()
+void Engine::init_lattice_algorithm()
 {
-	std::fprintf(f1, "ITEM: TIMESTEP\n%d\n", int(Time / timestep));
-	std::fprintf(f1, "ITEM: TIME\n%.8f\n", Time);
-	std::fprintf(f1, "ITEM: BOX BOUNDS pp pp f\n%.4f %.4f\n%.4f %.4f\n-0.002 0.002\n", x_0, x_0 + lx, y_0, y_0 + ly);
-	std::fprintf(f1, "ITEM: NUMBER OF ATOMS\n%d\n", no_of_particles+dimples.size());
-	std::fprintf(f1, "ITEM: KINETIC ENERGY\n%.3e\n", total_kinetic_energy());
-	std::fprintf(f1, "ITEM: COLLISION\n%d\n", collision);
-	std::fprintf(f1, "ITEM: ATOMS x y z vx vy radius type contact\n");
-	for (Particle& p : particles) {
-		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", p.x(), p.y(), 0.0, p.vx(), p.vy(), p.r(), p.pstate(), p.contact());
+	rmin = particles[0].r();
+	rmax = particles[0].r();
+	for (auto& p : particles) {
+		if (p.r() < rmin) rmin = p.r();
+		if (p.r() > rmax) rmax = p.r();
 	}
-	for (Vector& d : dimples) {
-		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", d.x(), d.y(), 0.0, 0.0, 0.0, dimple_rad, 2, 0);
+	gk = sqrt(2) * rmin;
+	gm = int(2 * rmax / gk) + 1;
+	Nx = int(lx / gk) + 1;
+	Ny = int(ly / gk + 1);
+	partners.resize(no_of_particles);
+	pindex.resize(Nx);
+	for (auto& p : pindex) {
+		p.resize(Ny);
+	}
+	clear_pindex();
+	make_ilist();
+}
+
+void Engine::make_ilist()
+{
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		//if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
+		int ix = int((x - x_0) / gk);
+		int iy = int((y - y_0) / gk);
+		pindex[ix][iy] = i;
+		partners[i].clear();
+		//}
+	}
+
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
+			int ix = int((x - x_0) / gk);
+			int iy = int((y - y_0) / gk);
+			for (int dx = -gm; dx <= gm; dx++) {
+				for (int dy = -gm; dy <= gm; dy++) {
+					int iix = (ix + dx + Nx) % Nx;
+					int iiy = (iy + dy + Ny) % Ny;
+					int k = pindex[iix][iiy];
+					if (k > (int)i) {
+						partners[i].push_back(k);
+					}
+				}
+			}
+		}
 	}
 }
+
+bool Engine::ilist_needs_update() {
+	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
+		double x = particles[i].x();
+		double y = particles[i].y();
+		int ix = int((x - x_0) / gk);
+		int iy = int((y - y_0) / gk);
+		if (pindex[ix][iy] != i) {
+			clear_pindex();
+			return true;
+		}
+	}
+	return false;
+}
+
+void Engine::clear_pindex()
+{
+	for (auto& p : pindex) {
+		for (auto& q : p) {
+			q = -1;
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////
+/// Link Cell
+////////////////////////////////////////////////////////////////////////
 
 void Engine::make_link_cell()
 {
@@ -509,81 +476,72 @@ void Engine::init_link_cell_algorithm()
 	make_link_cell();
 }
 
-void Engine::make_ilist()
+//////////////////////////////////////////////////////////////////
+/// Dumping
+//////////////////////////////////////////////////////////////////
+
+void Engine::check_dump()
 {
-	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
-		double x = particles[i].x();
-		double y = particles[i].y();
-		//if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
-			int ix = int((x - x_0) / gk);
-			int iy = int((y - y_0) / gk);
-			pindex[ix][iy] = i;
-			partners[i].clear();
+	if (save != _options.save_interval) {
+		save++;
+	}
+	else {
+		//if (!collision) {
+		save = 1;
+		dump();
 		//}
 	}
-
-	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
-		double x = particles[i].x();
-		double y = particles[i].y();
-		if ((x >= x_0) && (x < x_0 + lx) && (y >= y_0) && (y < y_0 + ly)) {
-			int ix = int((x - x_0) / gk);
-			int iy = int((y - y_0) / gk);
-			for (int dx = -gm; dx <= gm; dx++) {
-				for (int dy = -gm; dy <= gm; dy++) {
-					int iix = (ix + dx + Nx) % Nx;
-					int iiy = (iy + dy + Ny) % Ny;
-					int k = pindex[iix][iiy];
-					if (k > (int)i) {
-						partners[i].push_back(k);
-					}
-				}
-			}
+	if (_options.save_on_collision == true) {
+		_collisions = collisions();
+		if (_collisions != _last_collisions) {
+			dump();
 		}
+		_last_collisions = _collisions;
 	}
-	//clear_pindex();
 }
 
-bool Engine::ilist_needs_update() {
-	for (unsigned int i{ 0 }; i < no_of_particles; i++) {
-		double x = particles[i].x();
-		double y = particles[i].y();
-		int ix = int((x - x_0) / gk);
-		int iy = int((y - y_0) / gk);
-		if (pindex[ix][iy] != i) {
-			clear_pindex();
-			return true;
-		}
-	}
-	return false;
-}
-
-void Engine::clear_pindex()
+void Engine::dump()
 {
-	for (auto& p : pindex) {
-		for (auto& q : p) {
-			q = -1;
-		}
+	std::fprintf(f1, "ITEM: TIMESTEP\n%d\n", int(Time / timestep));
+	std::fprintf(f1, "ITEM: TIME\n%.8f\n", Time);
+	std::fprintf(f1, "ITEM: BOX BOUNDS pp pp f\n%.4f %.4f\n%.4f %.4f\n-0.002 0.002\n", x_0, x_0 + lx, y_0, y_0 + ly);
+	std::fprintf(f1, "ITEM: NUMBER OF ATOMS\n%d\n", no_of_particles + dimples.size());
+	std::fprintf(f1, "ITEM: KINETIC ENERGY\n%.3e\n", total_kinetic_energy());
+	std::fprintf(f1, "ITEM: COLLISION\n%d\n", collision);
+	std::fprintf(f1, "ITEM: ATOMS x y z vx vy radius type contact\n");
+	for (Particle& p : particles) {
+		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", p.x(), p.y(), 0.0, p.vx(), p.vy(), p.r(), p.pstate(), p.contact());
+	}
+	for (Vector& d : dimples) {
+		std::fprintf(f1, "%.9f %.9f %.5f %.5f %.5f %.5f %d %d\n", d.x(), d.y(), 0.0, 0.0, 0.0, dimple_rad, 2, 0);
 	}
 }
 
-void Engine::init_lattice_algorithm()
+///////////////////////////////////////////////////////////////////
+/// Extra Calculations
+///////////////////////////////////////////////////////////////////
+
+int Engine::collisions()
 {
-	rmin = particles[0].r();
-	rmax = particles[0].r();
+	int sum{ 0 };
+	std::for_each(particles.begin(), particles.end(), [&](auto& p) {sum += p.collisions(); });
+	return sum;
+}
+
+double Engine::total_kinetic_energy()
+{
+	double energy{ 0 };
 	for (auto& p : particles) {
-		if (p.r() < rmin) rmin = p.r();
-		if (p.r() > rmax) rmax = p.r();
+		energy += p.kinetic_energy();
 	}
-	gk = sqrt(2) * rmin;
-	gm = int(2 * rmax / gk) + 1;
-	Nx = int(lx / gk) + 1;
-	Ny = int(ly / gk + 1);
-	partners.resize(no_of_particles);
-	pindex.resize(Nx);
-	for (auto& p : pindex) {
-		p.resize(Ny);
-	}
-	clear_pindex();
-	make_ilist();
+	return energy;
 }
 
+double Engine::total_force()
+{
+	double f{ 0 };
+	for (auto& p : particles) {
+		f += p.force().length();
+	}
+	return f;
+}

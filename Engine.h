@@ -48,13 +48,13 @@ public:
 		init_system(fname);
 		if (options.optimiser == Optimiser::LinkCell) { init_link_cell_algorithm(); }
 		if (_options.optimiser == Optimiser::Lattice) { init_lattice_algorithm(); }
-		init_dimples();
 	};
-
 	void step();
 	int collisions();
 	double total_kinetic_energy();
 	double total_force();
+
+	
 	void set_noise(double s) {noise_strength = s;}
 
 
@@ -63,7 +63,6 @@ private:
 	// Functions
 	bool init;
 	void init_system(const char* fname);
-	void init_dimples();
 	void make_forces();
 	void make_random_forces();
 	void correct_random_forces();
